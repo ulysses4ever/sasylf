@@ -10,9 +10,17 @@ The [Wiki](https://github.com/boyland/sasylf/wiki) has pages for [installing](ht
 
 Summary: To use VSCode, type SASyLF in the Extensions:Marketplace search box and install the [extension](https://marketplace.visualstudio.com/items?itemName=sasylf.SASyLF).  To use the Eclipse IDE or the command line, get the JAR file from the release page and either put in the `dropins/` folder of the Eclipse distribution or use it with `java -jar`.
 
+**Note for Windows 11 users:** If the VS Code extension crashes with a logging error, please see [VSCODE-EXTENSION-FIX.md](VSCODE-EXTENSION-FIX.md) for solutions, or run the provided fix script: `fix-sasylf-extension.ps1` (PowerShell) or `fix-sasylf-extension.bat` (Command Prompt).
+
 ## Documentation
 
 See the [Wiki](https://github.com/boyland/sasylf/wiki) for documentation.
+
+## Troubleshooting
+
+### VS Code Extension Issues on Windows 11
+
+If you're experiencing crashes with the VS Code extension on Windows 11, especially errors related to logging or file access, please refer to [VSCODE-EXTENSION-FIX.md](VSCODE-EXTENSION-FIX.md) for detailed solutions and automated fix scripts.
 
 ## SASyLF Examples
 
