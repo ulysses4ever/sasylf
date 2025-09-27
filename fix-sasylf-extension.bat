@@ -3,7 +3,8 @@ setlocal enabledelayedexpansion
 
 echo SASyLF VS Code Extension Fix for Windows 11
 echo ==========================================
-echo Addresses file permission and security issues even when logs directory exists
+echo Issue: Extension crashes due to logging utility file access problems
+echo Source: https://github.com/boyland/sasylf/pull/127 (utils.js logging functions)
 echo.
 
 set "extensionPath=%USERPROFILE%\.vscode\extensions"

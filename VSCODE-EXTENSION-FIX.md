@@ -8,16 +8,74 @@ The SASyLF VS Code extension (sasylf.sasylf-2.0.0) crashes on Windows 11 with th
 Error: ENOENT: no such file or directory, open 'c:\Users\username\.vscode\extensions\sasylf.sasylf-2.0.0\logs\2025-09-09T03:09:37.667Z.log'
 ```
 
-This occurs even when the `logs` directory exists. The issue is that the extension cannot create or write to the specific log file within the directory. Common causes include:
+This occurs even when the `logs` directory exists. The issue is that the extension cannot create or write to the specific log file within the directory. 
+
+## Root Cause Analysis
+
+**The VS Code extension source code is available in [boyland/sasylf PR #127](https://github.com/boyland/sasylf/pull/127).** The issue is in the language server's `utils.js` file (compiled from TypeScript) where the `createLogFile` function attempts to create log files without properly checking directory existence or handling permission errors.
+
+The error occurs at:
+- `createLogFile (c:\Users\username\.vscode\extensions\sasylf.sasylf-2.0.0\server\out\utils.js:153:12)`
+- `logErrorToFile (c:\Users\username\.vscode\extensions\sasylf.sasylf-2.0.0\server\out\utils.js:160:25)`
+
+Common causes include:
 
 - **File permissions**: Directory exists but lacks write permissions for individual files
 - **Windows security restrictions**: Windows Defender or security software blocking file creation
-- **Electron/Node.js file access issues**: VS Code's Electron runtime having restricted file system access
+- **Electron/Node.js file access issues**: VS Code's Electron runtime having restricted file system access  
 - **Path length or character encoding issues**: Windows file system limitations with certain characters or long paths
 
-## Solutions
+## Proper Fix for Extension Developers
 
-### Solution 1: File Permissions and Security Fix
+**For developers with access to the extension source code ([PR #127](https://github.com/boyland/sasylf/pull/127)):**
+
+The root issue is in the `utils.ts` file (compiled to `utils.js`) where logging functions don't properly handle directory creation. The fix should include:
+
+```typescript
+import * as fs from 'fs';
+import * as path from 'path';
+
+function createLogFile(logPath: string): void {
+    try {
+        // Ensure the directory exists
+        const logDir = path.dirname(logPath);
+        if (!fs.existsSync(logDir)) {
+            fs.mkdirSync(logDir, { recursive: true });
+        }
+        
+        // Test write access
+        fs.writeFileSync(logPath, '');
+    } catch (error) {
+        // Fallback to console logging if file system is restricted
+        console.error('Failed to create log file:', error);
+        // Disable file logging for this session
+        return;
+    }
+}
+
+function logErrorToFile(error: any, logPath: string): void {
+    try {
+        createLogFile(logPath);
+        fs.appendFileSync(logPath, `${new Date().toISOString()}: ${error}\n`);
+    } catch (fsError) {
+        // Fallback to console if file logging fails
+        console.error('Logging error:', error);
+        console.error('File system error:', fsError);
+    }
+}
+```
+
+This approach:
+1. Creates directories recursively with proper error handling
+2. Tests write access before attempting to log
+3. Falls back to console logging if file system access fails
+4. Handles Windows-specific permission issues gracefully
+
+## Workarounds for Users
+
+Since the extension cannot be immediately updated, users can apply these workarounds:
+
+### User Solution 1: File Permissions and Security Fix
 
 1. **Navigate to your VS Code extensions directory:**
    ```cmd
@@ -50,7 +108,7 @@ This occurs even when the `logs` directory exists. The issue is that the extensi
 6. **Restart VS Code as Administrator** (temporarily to test):
    - Right-click VS Code → "Run as administrator"
 
-### Solution 2: PowerShell Script (Automated Fix)
+### User Solution 2: PowerShell Script (Automated Fix)
 
 Create a file called `fix-sasylf-extension.ps1` with the following content:
 
@@ -114,7 +172,7 @@ Run the script in PowerShell:
 PowerShell -ExecutionPolicy Bypass -File fix-sasylf-extension.ps1
 ```
 
-### Solution 3: Batch Script (Alternative for cmd users)
+### User Solution 3: Batch Script (Alternative for cmd users)
 
 Create a file called `fix-sasylf-extension.bat`:
 
@@ -226,13 +284,12 @@ If none of these solutions work, please report the issue with:
 
 **Important**: This fix addresses the scenario where the logs directory exists but individual log files cannot be created within it. The original error `ENOENT: no such file or directory` refers to the specific log file, not the logs directory itself.
 
-The root cause is typically one of:
-- **File-level permissions**: Directory permissions don't automatically grant file creation rights
-- **Windows security policies**: Real-time protection blocking file writes in extension directories  
-- **Electron runtime restrictions**: VS Code's Electron process having limited file system access
-- **File locking**: Other processes interfering with file operations
+**For Extension Developers**: The proper solution is to update the extension source code (available in [boyland/sasylf PR #127](https://github.com/boyland/sasylf/pull/127)) to include proper directory creation and error handling in the logging utilities.
 
-This is a temporary workaround. The extension source code should be updated to:
+**For Users**: The workarounds above address permission and security issues that prevent file creation, providing immediate relief until the extension is updated.
+
+The root cause is in the extension's `utils.js` logging mechanism which should:
 1. Check directory existence before attempting file operations
-2. Handle permission errors gracefully
-3. Provide fallback logging mechanisms when file system access is restricted
+2. Handle permission errors gracefully with fallback logging  
+3. Create directories recursively when needed
+4. Provide fallback mechanisms when file system access is restricted

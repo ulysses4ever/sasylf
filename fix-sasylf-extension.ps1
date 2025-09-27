@@ -1,9 +1,11 @@
 # SASyLF VS Code Extension Fix for Windows 11
 # This script fixes file permissions and security issues preventing log file creation
+# Root cause: Extension logging utility lacks proper directory/permission handling
 
 Write-Host "SASyLF VS Code Extension Fix for Windows 11" -ForegroundColor Cyan
 Write-Host "=========================================" -ForegroundColor Cyan
-Write-Host "Addresses file permission and security issues even when logs directory exists" -ForegroundColor Yellow
+Write-Host "Issue: Extension crashes due to logging utility file access problems" -ForegroundColor Yellow
+Write-Host "Source: https://github.com/boyland/sasylf/pull/127 (utils.js logging functions)" -ForegroundColor Yellow
 Write-Host ""
 
 $extensionPath = "$env:USERPROFILE\.vscode\extensions"
