@@ -1,8 +1,9 @@
 # SASyLF VS Code Extension Fix for Windows 11
-# This script creates the missing logs directory and sets proper permissions
+# This script fixes file permissions and security issues preventing log file creation
 
 Write-Host "SASyLF VS Code Extension Fix for Windows 11" -ForegroundColor Cyan
 Write-Host "=========================================" -ForegroundColor Cyan
+Write-Host "Addresses file permission and security issues even when logs directory exists" -ForegroundColor Yellow
 Write-Host ""
 
 $extensionPath = "$env:USERPROFILE\.vscode\extensions"
@@ -39,7 +40,7 @@ foreach ($extension in $sasylf_extensions) {
     Write-Host "Processing extension: $extension" -ForegroundColor Yellow
     Write-Host "  Path: $fullPath"
     
-    # Check if logs directory exists
+    # Ensure logs directory exists
     if (!(Test-Path $logsPath)) {
         try {
             New-Item -ItemType Directory -Path $logsPath -Force | Out-Null
@@ -52,17 +53,45 @@ foreach ($extension in $sasylf_extensions) {
         Write-Host "  ✓ Logs directory already exists" -ForegroundColor Blue
     }
     
-    # Set permissions
+    # Take ownership and reset permissions (more thorough than just setting ACL)
     try {
-        $acl = Get-Acl $logsPath
-        $accessRule = New-Object System.Security.AccessControl.FileSystemAccessRule($env:USERNAME, "FullControl", "Allow")
-        $acl.SetAccessRule($accessRule)
-        Set-Acl $logsPath $acl
-        Write-Host "  ✓ Set full permissions for user: $env:USERNAME" -ForegroundColor Green
-        $fixedCount++
+        Write-Host "  → Taking ownership and resetting permissions..." -ForegroundColor Cyan
+        
+        # Take ownership
+        & takeown /f "$logsPath" /r /d y 2>&1 | Out-Null
+        
+        # Reset permissions to defaults
+        & icacls "$logsPath" /reset /T 2>&1 | Out-Null
+        
+        # Grant full control to current user
+        & icacls "$logsPath" /grant "${env:USERNAME}:F" /T 2>&1 | Out-Null
+        
+        Write-Host "  ✓ Fixed ownership and permissions" -ForegroundColor Green
+        
+        # Test file creation to verify fix
+        $testFile = Join-Path $logsPath "sasylf-test.log"
+        try {
+            "Test log entry $(Get-Date)" | Out-File $testFile -ErrorAction Stop
+            Remove-Item $testFile -ErrorAction Stop
+            Write-Host "  ✓ File creation test successful" -ForegroundColor Green
+            $fixedCount++
+        } catch {
+            Write-Host "  ⚠ File creation test failed: $($_.Exception.Message)" -ForegroundColor Yellow
+            Write-Host "    The directory exists but file creation is still blocked" -ForegroundColor Yellow
+        }
+        
     } catch {
-        Write-Host "  ⚠ Warning: Could not set permissions: $($_.Exception.Message)" -ForegroundColor Yellow
+        Write-Host "  ✗ Permission fix failed: $($_.Exception.Message)" -ForegroundColor Red
         Write-Host "    Try running PowerShell as Administrator" -ForegroundColor Yellow
+    }
+    
+    # Attempt to add Windows Defender exclusion (requires admin privileges)
+    try {
+        Add-MpPreference -ExclusionPath $extensionPath -ErrorAction Stop 2>&1 | Out-Null
+        Write-Host "  ✓ Added Windows Defender exclusion" -ForegroundColor Green
+    } catch {
+        Write-Host "  ⚠ Could not add Windows Defender exclusion automatically" -ForegroundColor Yellow
+        Write-Host "    Manually add exclusion for: $extensionPath" -ForegroundColor Yellow
     }
     
     Write-Host ""
@@ -74,16 +103,17 @@ Write-Host "  Successfully fixed: $fixedCount" -ForegroundColor Green
 
 if ($fixedCount -gt 0) {
     Write-Host ""
-    Write-Host "Fix completed successfully! Please:" -ForegroundColor Green
+    Write-Host "Fix completed! Next steps:" -ForegroundColor Green
     Write-Host "1. Close VS Code completely" -ForegroundColor Yellow
     Write-Host "2. Restart VS Code" -ForegroundColor Yellow
     Write-Host "3. Open a .slf file to test the extension" -ForegroundColor Yellow
 } else {
     Write-Host ""
-    Write-Host "No extensions were fixed. If issues persist:" -ForegroundColor Red
-    Write-Host "1. Try running PowerShell as Administrator" -ForegroundColor Yellow
-    Write-Host "2. Check Windows Defender/antivirus settings" -ForegroundColor Yellow
-    Write-Host "3. Report the issue with full error details" -ForegroundColor Yellow
+    Write-Host "No extensions were successfully fixed. Additional steps:" -ForegroundColor Red
+    Write-Host "1. Run PowerShell as Administrator and try again" -ForegroundColor Yellow
+    Write-Host "2. Manually add Windows Defender exclusion: $extensionPath" -ForegroundColor Yellow
+    Write-Host "3. Try running VS Code as Administrator temporarily" -ForegroundColor Yellow
+    Write-Host "4. Check Windows Event Viewer for detailed error logs" -ForegroundColor Yellow
 }
 
 Write-Host ""

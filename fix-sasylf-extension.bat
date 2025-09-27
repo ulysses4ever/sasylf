@@ -3,6 +3,7 @@ setlocal enabledelayedexpansion
 
 echo SASyLF VS Code Extension Fix for Windows 11
 echo ==========================================
+echo Addresses file permission and security issues even when logs directory exists
 echo.
 
 set "extensionPath=%USERPROFILE%\.vscode\extensions"
@@ -38,14 +39,30 @@ for /d %%i in ("%extensionPath%\sasylf.sasylf-*") do (
         echo   ^✓ Logs directory already exists
     )
     
-    echo   Setting permissions on logs directory...
-    icacls "%%i\logs" /grant %USERNAME%:F >nul 2>&1
+    echo   ^→ Taking ownership and fixing permissions...
+    takeown /f "%%i\logs" /r /d y >nul 2>&1
     if !errorlevel! equ 0 (
-        echo   ^✓ Set full permissions for user: %USERNAME%
+        echo   ^✓ Took ownership of logs directory
+    ) else (
+        echo   ^⚠ Could not take ownership
+    )
+    
+    icacls "%%i\logs" /reset /T >nul 2>&1
+    icacls "%%i\logs" /grant %USERNAME%:F /T >nul 2>&1
+    if !errorlevel! equ 0 (
+        echo   ^✓ Set comprehensive file permissions
+    ) else (
+        echo   ^⚠ Could not set permissions fully
+    )
+    
+    echo   ^→ Testing file creation...
+    echo test > "%%i\logs\sasylf-test.log" 2>nul
+    if exist "%%i\logs\sasylf-test.log" (
+        del "%%i\logs\sasylf-test.log" 2>nul
+        echo   ^✓ File creation test successful
         set /a fixedExtensions+=1
     ) else (
-        echo   ^⚠ Warning: Could not set permissions
-        echo     Try running this script as Administrator
+        echo   ^⚠ File creation test failed - directory exists but file creation blocked
     )
     
     :continue
@@ -70,15 +87,17 @@ echo   Successfully fixed: %fixedExtensions%
 echo.
 
 if %fixedExtensions% gtr 0 (
-    echo Fix completed successfully! Please:
+    echo Fix completed! Next steps:
     echo 1. Close VS Code completely
     echo 2. Restart VS Code
     echo 3. Open a .slf file to test the extension
 ) else (
-    echo No extensions were fixed. If issues persist:
-    echo 1. Try running this script as Administrator
-    echo 2. Check Windows Defender/antivirus settings
-    echo 3. Report the issue with full error details
+    echo No extensions were successfully fixed. Additional steps:
+    echo 1. Run this script as Administrator
+    echo 2. Add VS Code extensions folder to Windows Defender exclusions:
+    echo    %extensionPath%
+    echo 3. Try running VS Code as Administrator temporarily
+    echo 4. Check Windows Event Viewer for detailed error information
 )
 
 echo.
